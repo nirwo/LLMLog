@@ -11,6 +11,7 @@ import certifi
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from urllib3.exceptions import InsecureRequestWarning
+import ssl
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -27,6 +28,27 @@ WARNING_PATTERN = re.compile(r'\b(WARNING|WARN:)\b', re.IGNORECASE)
 # Simple in-memory cache for development
 LOG_CACHE = {}
 SESSION_KEY = 'current_log'
+
+# Get system certificates
+def get_system_ca_certificates():
+    try:
+        import certifi.where
+        system_ca = certifi.where()
+        if os.path.exists('/etc/ssl/certs/ca-certificates.crt'):
+            return '/etc/ssl/certs/ca-certificates.crt'
+        elif os.path.exists('/etc/ssl/certs/ca-bundle.crt'):
+            return '/etc/ssl/certs/ca-bundle.crt'
+        elif os.path.exists('/etc/pki/tls/certs/ca-bundle.crt'):
+            return '/etc/pki/tls/certs/ca-bundle.crt'
+        else:
+            return system_ca
+    except Exception as e:
+        app.logger.warning(f"Could not find system certificates: {e}")
+        return None
+
+# Get system CA certificates
+SYSTEM_CA_BUNDLE = get_system_ca_certificates()
+app.logger.info(f"Using CA bundle from: {SYSTEM_CA_BUNDLE}")
 
 def get_db():
     if 'db' not in g:
@@ -60,25 +82,34 @@ def create_session():
     adapter = HTTPAdapter(max_retries=retry)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
-    session.verify = certifi.where()  # Use certifi's certificate bundle
+    
+    if SYSTEM_CA_BUNDLE:
+        session.verify = SYSTEM_CA_BUNDLE
+        app.logger.info(f"Using system CA bundle: {SYSTEM_CA_BUNDLE}")
+    else:
+        app.logger.warning("No system CA bundle found, falling back to default certifi bundle")
+        session.verify = True  # Use default certifi bundle
+    
     return session
 
 def fetch_log_from_url(url):
     try:
         session = create_session()
+        app.logger.info(f"Fetching URL {url} with CA bundle: {session.verify}")
         response = session.get(url, timeout=30)
         response.raise_for_status()
         return response.text
-    except requests.exceptions.SSLError:
-        # If SSL verification fails, try without verification but log a warning
-        session.verify = False
+    except requests.exceptions.SSLError as ssl_err:
+        app.logger.error(f"SSL Error: {ssl_err}")
+        # If SSL verification fails with system certs, try with default certifi bundle
+        session.verify = certifi.where()
         try:
+            app.logger.info(f"Retrying with default certifi bundle: {certifi.where()}")
             response = session.get(url, timeout=30)
             response.raise_for_status()
-            app.logger.warning(f"SSL verification failed for {url}, proceeded with insecure connection")
             return response.text
         except Exception as e:
-            raise Exception(f"Failed to fetch log from URL (even with SSL verification disabled): {str(e)}")
+            raise Exception(f"SSL verification failed with both system and default certificates: {str(e)}")
     except Exception as e:
         raise Exception(f"Failed to fetch log from URL: {str(e)}")
 
