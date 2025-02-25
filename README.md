@@ -33,6 +33,35 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+4. Configure environment variables:
+```bash
+cp .env.example .env
+```
+Then edit the `.env` file to set your configuration options.
+
+## LLM Configuration
+
+The application uses a local LLM service (like Ollama) by default, but can fall back to OpenAI's API when the local service is unavailable.
+
+### Local LLM (Default)
+
+1. Install [Ollama](https://ollama.ai/) or another compatible local LLM service
+2. Pull the required model:
+```bash
+ollama pull llama3
+```
+
+### OpenAI API Fallback
+
+To enable the OpenAI API fallback:
+
+1. Get an API key from [OpenAI](https://platform.openai.com/api-keys)
+2. Add your API key to the `.env` file:
+```
+OPENAI_API_KEY=your_api_key_here
+USE_FALLBACK_LLM=true
+```
+
 ## Usage
 
 ### Running with HTTP (default)

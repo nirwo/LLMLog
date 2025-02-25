@@ -29,6 +29,12 @@ LLM_API_URL = os.environ.get("LLM_API_URL", DEFAULT_LLM_API_URL)
 LLM_MODEL = os.environ.get("LLM_MODEL", DEFAULT_LLM_MODEL)
 LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", DEFAULT_LLM_TIMEOUT))
 
+# OpenAI API configuration (fallback)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
+USE_FALLBACK_LLM = os.environ.get("USE_FALLBACK_LLM", "true").lower() == "true"
+
 class ErrorAnalysisRequest(BaseModel):
     model: str
     prompt: str
@@ -43,7 +49,8 @@ class ErrorAnalysisResponse(BaseModel):
 
 def check_llm_status() -> Dict[str, Union[bool, str]]:
     """
-    Check if the LLM service is available and responding
+    Check if the LLM service is available and responding.
+    If local LLM is not available, check if fallback is enabled and OpenAI API key is set.
     """
     try:
         # First try the health endpoint
@@ -72,10 +79,20 @@ def check_llm_status() -> Dict[str, Union[bool, str]]:
                 return {
                     "available": True,
                     "status": "LLM service is available and model is loaded",
-                    "message": f"Using model: {LLM_MODEL}"
+                    "message": f"Using model: {LLM_MODEL}",
+                    "using_fallback": False
                 }
             else:
                 logger.warning(f"LLM model test failed: {response.status_code} - {response.text}")
+                # Check if fallback is available
+                if USE_FALLBACK_LLM and OPENAI_API_KEY:
+                    logger.info("Using OpenAI API as fallback")
+                    return {
+                        "available": True,
+                        "status": "Using OpenAI API as fallback",
+                        "message": f"Using model: {OPENAI_MODEL}",
+                        "using_fallback": True
+                    }
                 return {
                     "available": False,
                     "status": f"LLM service returned status code {response.status_code}",
@@ -83,6 +100,15 @@ def check_llm_status() -> Dict[str, Union[bool, str]]:
                 }
         else:
             logger.warning(f"LLM health check failed: {response.status_code}")
+            # Check if fallback is available
+            if USE_FALLBACK_LLM and OPENAI_API_KEY:
+                logger.info("Using OpenAI API as fallback")
+                return {
+                    "available": True,
+                    "status": "Using OpenAI API as fallback",
+                    "message": f"Using model: {OPENAI_MODEL}",
+                    "using_fallback": True
+                }
             return {
                 "available": False,
                 "status": f"LLM service returned status code {response.status_code}",
@@ -90,10 +116,72 @@ def check_llm_status() -> Dict[str, Union[bool, str]]:
             }
     except requests.RequestException as e:
         logger.error(f"Failed to connect to LLM service: {str(e)}")
+        # Check if fallback is available
+        if USE_FALLBACK_LLM and OPENAI_API_KEY:
+            logger.info("Using OpenAI API as fallback")
+            return {
+                "available": True,
+                "status": "Using OpenAI API as fallback",
+                "message": f"Using model: {OPENAI_MODEL}",
+                "using_fallback": True
+            }
         return {
             "available": False,
             "status": "Connection failed",
             "message": f"Make sure Ollama is running on your system. Error: {str(e)}"
+        }
+
+def call_openai_api(messages, model=OPENAI_MODEL, temperature=0.7):
+    """
+    Call the OpenAI API with the given messages
+    
+    Args:
+        messages: List of message objects with role and content
+        model: OpenAI model to use
+        temperature: Temperature for response generation
+        
+    Returns:
+        The content of the assistant's response
+    """
+    if not OPENAI_API_KEY:
+        logger.error("OpenAI API key not set")
+        return {
+            "error": "OpenAI API key not set. Please set the OPENAI_API_KEY environment variable."
+        }
+    
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {OPENAI_API_KEY}"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature
+        }
+        
+        response = requests.post(
+            OPENAI_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            content = response_data["choices"][0]["message"]["content"]
+            return content
+        else:
+            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            return {
+                "error": f"OpenAI API returned status code {response.status_code}",
+                "details": response.text
+            }
+    except Exception as e:
+        logger.error(f"Error calling OpenAI API: {str(e)}")
+        return {
+            "error": f"Failed to call OpenAI API: {str(e)}"
         }
 
 def extract_error_context(lines: List[str], line_number: int, context_lines: int = 5) -> Dict[str, Any]:
@@ -192,43 +280,80 @@ Provide a comprehensive analysis in JSON format with these fields:
 Format your response as valid JSON. Be specific and practical in your suggested fixes.
 """
     
+    # Check LLM status to determine if we should use fallback
+    llm_status = check_llm_status()
+    using_fallback = llm_status.get("using_fallback", False)
+    
+    if not llm_status["available"]:
+        return {
+            "error": "LLM service is not available and no fallback configured",
+            "details": llm_status["message"]
+        }
+    
     try:
-        logger.info(f"Sending error analysis request to LLM at {LLM_API_URL}")
-        
-        # Create the request payload for chat API format
-        request_data = {
-            "model": LLM_MODEL,
-            "messages": [
+        if using_fallback:
+            # Use OpenAI API
+            logger.info("Using OpenAI API for error analysis")
+            messages = [
                 {"role": "system", "content": "You are an expert in Jenkins and CI/CD troubleshooting who provides concise, accurate JSON responses."},
                 {"role": "user", "content": prompt}
-            ],
-            "stream": False
-        }
-        
-        # Send request to LLM API
-        response = requests.post(
-            LLM_API_URL,
-            json=request_data,
-            timeout=LLM_TIMEOUT
-        )
-        
-        if response.status_code != 200:
-            logger.error(f"LLM API returned error: {response.status_code} - {response.text}")
-            return {
-                "error": f"LLM API returned status code {response.status_code}",
-                "details": response.text
+            ]
+            content = call_openai_api(messages)
+            
+            # Check if we got an error response
+            if isinstance(content, dict) and "error" in content:
+                return content
+        else:
+            # Use local LLM service
+            logger.info(f"Sending error analysis request to LLM at {LLM_API_URL}")
+            
+            # Create the request payload for chat API format
+            request_data = {
+                "model": LLM_MODEL,
+                "messages": [
+                    {"role": "system", "content": "You are an expert in Jenkins and CI/CD troubleshooting who provides concise, accurate JSON responses."},
+                    {"role": "user", "content": prompt}
+                ],
+                "stream": False
             }
             
-        response_data = response.json()
-        
-        # Extract content from the chat API response
-        if "message" in response_data:
-            content = response_data["message"]["content"]
-        elif "choices" in response_data and len(response_data["choices"]) > 0:
-            content = response_data["choices"][0]["message"]["content"]
-        else:
-            logger.error(f"Unexpected response format: {response_data}")
-            return {"error": "Unable to parse LLM response", "details": str(response_data)}
+            # Send request to LLM API
+            response = requests.post(
+                LLM_API_URL,
+                json=request_data,
+                timeout=LLM_TIMEOUT
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"LLM API returned error: {response.status_code} - {response.text}")
+                # Try fallback if available
+                if USE_FALLBACK_LLM and OPENAI_API_KEY:
+                    logger.info("Falling back to OpenAI API after local LLM failure")
+                    messages = [
+                        {"role": "system", "content": "You are an expert in Jenkins and CI/CD troubleshooting who provides concise, accurate JSON responses."},
+                        {"role": "user", "content": prompt}
+                    ]
+                    content = call_openai_api(messages)
+                    
+                    # Check if we got an error response
+                    if isinstance(content, dict) and "error" in content:
+                        return content
+                else:
+                    return {
+                        "error": f"LLM API returned status code {response.status_code}",
+                        "details": response.text
+                    }
+            else:
+                response_data = response.json()
+                
+                # Extract content from the chat API response
+                if "message" in response_data:
+                    content = response_data["message"]["content"]
+                elif "choices" in response_data and len(response_data["choices"]) > 0:
+                    content = response_data["choices"][0]["message"]["content"]
+                else:
+                    logger.error(f"Unexpected response format: {response_data}")
+                    return {"error": "Unable to parse LLM response", "details": str(response_data)}
         
         # Try to parse the JSON from the response
         try:
@@ -267,38 +392,75 @@ def get_llm_analysis(prompt):
     """
     Generic function to get analysis from LLM for any prompt
     """
+    # Check LLM status to determine if we should use fallback
+    llm_status = check_llm_status()
+    using_fallback = llm_status.get("using_fallback", False)
+    
+    if not llm_status["available"]:
+        return "Sorry, LLM service is not available and no fallback configured."
+    
     try:
-        # Use the chat API endpoint which is more likely to work with modern LLMs
-        llm_url = os.environ.get('LLM_API_URL', 'http://localhost:11434/api/chat')
-        model = os.environ.get('LLM_MODEL', 'llama3')
-        timeout = int(os.environ.get('LLM_TIMEOUT', 30))
-        
-        # Format payload for the chat endpoint
-        payload = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "stream": False
-        }
-        
-        logger.info(f"Sending request to LLM service: {llm_url}")
-        response = requests.post(llm_url, json=payload, timeout=timeout)
-        
-        if response.status_code == 200:
-            data = response.json()
-            # Extract the response based on the API's response format
-            message = data.get('message', {})
-            content = message.get('content', "I couldn't analyze this properly.")
-            logger.info(f"Got response from LLM service: {content[:50]}...")
+        if using_fallback:
+            # Use OpenAI API
+            logger.info("Using OpenAI API for analysis")
+            messages = [
+                {"role": "user", "content": prompt}
+            ]
+            content = call_openai_api(messages)
+            
+            # Check if we got an error response
+            if isinstance(content, dict) and "error" in content:
+                return f"Error: {content.get('error')}"
+            
             return content
         else:
-            error_msg = f"Error from LLM API: {response.status_code} - {response.text}"
-            logger.error(error_msg)
-            return "Sorry, I encountered an error while analyzing."
+            # Use local LLM service
+            # Use the chat API endpoint which is more likely to work with modern LLMs
+            llm_url = os.environ.get('LLM_API_URL', 'http://localhost:11434/api/chat')
+            model = os.environ.get('LLM_MODEL', 'llama3')
+            timeout = int(os.environ.get('LLM_TIMEOUT', 30))
+            
+            # Format payload for the chat endpoint
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "stream": False
+            }
+            
+            logger.info(f"Sending request to LLM service: {llm_url}")
+            response = requests.post(llm_url, json=payload, timeout=timeout)
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Extract the response based on the API's response format
+                message = data.get('message', {})
+                content = message.get('content', "I couldn't analyze this properly.")
+                logger.info(f"Got response from LLM service: {content[:50]}...")
+                return content
+            else:
+                error_msg = f"Error from LLM API: {response.status_code} - {response.text}"
+                logger.error(error_msg)
+                
+                # Try fallback if available
+                if USE_FALLBACK_LLM and OPENAI_API_KEY:
+                    logger.info("Falling back to OpenAI API after local LLM failure")
+                    messages = [
+                        {"role": "user", "content": prompt}
+                    ]
+                    content = call_openai_api(messages)
+                    
+                    # Check if we got an error response
+                    if isinstance(content, dict) and "error" in content:
+                        return f"Error: {content.get('error')}"
+                    
+                    return content
+                
+                return "Sorry, I encountered an error while analyzing."
     
     except Exception as e:
         error_msg = f"LLM analysis error: {str(e)}"

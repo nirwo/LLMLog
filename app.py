@@ -40,14 +40,20 @@ SESSION_KEY = 'current_log'
 # Import LLM service
 try:
     from llm_service import check_llm_status, extract_error_context, analyze_error, get_llm_analysis
-    LLM_AVAILABLE = check_llm_status()
-    app.logger.info(f"LLM service available: {LLM_AVAILABLE}")
+    LLM_STATUS = check_llm_status()
+    LLM_AVAILABLE = LLM_STATUS.get("available", False)
+    USING_FALLBACK_LLM = LLM_STATUS.get("using_fallback", False)
+    app.logger.info(f"LLM service status: {LLM_STATUS}")
+    if USING_FALLBACK_LLM:
+        app.logger.info("Using fallback LLM service (OpenAI API)")
 except ImportError as e:
     app.logger.warning(f"LLM service import error: {e}")
     LLM_AVAILABLE = False
+    USING_FALLBACK_LLM = False
 except Exception as e:
     app.logger.warning(f"LLM service connection error: {e}")
     LLM_AVAILABLE = False
+    USING_FALLBACK_LLM = False
 
 # Create a custom SSL context using system certificates
 def create_ssl_context(verify=True):
