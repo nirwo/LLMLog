@@ -28,7 +28,88 @@ function toggleTheme() {
 }
 
 // Load history on page load
-document.addEventListener('DOMContentLoaded', loadHistory);
+document.addEventListener('DOMContentLoaded', function() {
+    // Load history on page load
+    loadHistory();
+
+    // Handle URL form submission
+    document.getElementById('urlForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const urlInput = document.getElementById('logUrl');
+        const url = urlInput.value.trim();
+        
+        if (!url) {
+            alert('Please enter a valid URL');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('url', url);
+
+        fetch('/analyze', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(analysis => {
+            if (analysis.error) {
+                throw new Error(analysis.error);
+            }
+            renderCharts(analysis);
+            renderSummary(analysis);
+            document.getElementById('results').classList.remove('d-none');
+            loadHistory(); // Refresh history after successful analysis
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error analyzing log: ' + error.message);
+        });
+    });
+
+    // Handle file form submission
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fileInput = document.getElementById('logFile');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('Please select a file');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/analyze', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(analysis => {
+            if (analysis.error) {
+                throw new Error(analysis.error);
+            }
+            renderCharts(analysis);
+            renderSummary(analysis);
+            document.getElementById('results').classList.remove('d-none');
+            loadHistory(); // Refresh history after successful analysis
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error analyzing log: ' + error.message);
+        });
+    });
+});
 
 async function loadHistory() {
     try {

@@ -22,6 +22,7 @@ app.config['DATABASE'] = os.path.join(app.root_path, 'logs.db')
 ERROR_PATTERN = re.compile(r'\b(ERROR|FAILED|Exception:)\b', re.IGNORECASE)
 TIMESTAMP_PATTERN = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
 BUILD_STAGE_PATTERN = re.compile(r'\[Stage : (.+?)\]')
+WARNING_PATTERN = re.compile(r'\b(WARNING|WARN:)\b', re.IGNORECASE)
 
 # Simple in-memory cache for development
 LOG_CACHE = {}
@@ -81,84 +82,75 @@ def fetch_log_from_url(url):
     except Exception as e:
         raise Exception(f"Failed to fetch log from URL: {str(e)}")
 
+def extract_timestamp(line):
+    ts_match = TIMESTAMP_PATTERN.search(line)
+    return ts_match.group(0) if ts_match else None
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/analyze', methods=['POST'])
 def analyze_log():
-    file_id = str(uuid.uuid4())
-    
-    if 'log' in request.files:
-        log_file = request.files['log']
-        log_content = log_file.read().decode('utf-8')
-        source = 'file'
-        name = log_file.filename
-    elif 'url' in request.form:
-        url = request.form['url']
-        log_content = fetch_log_from_url(url)
-        source = 'url'
-        name = url
-    else:
-        return jsonify({'error': 'No log file or URL provided'}), 400
+    try:
+        if 'file' in request.files:
+            log_file = request.files['file']
+            if not log_file:
+                return jsonify({'error': 'No file provided'}), 400
+            log_content = log_file.read().decode('utf-8')
+            source = 'file'
+            name = log_file.filename
+        elif 'url' in request.form:
+            url = request.form['url'].strip()
+            if not url:
+                return jsonify({'error': 'No URL provided'}), 400
+                
+            try:
+                log_content = fetch_log_from_url(url)
+                source = 'url'
+                name = url
+            except Exception as e:
+                app.logger.error(f"Error fetching URL {url}: {str(e)}")
+                return jsonify({'error': f'Failed to fetch log from URL: {str(e)}'}), 400
+        else:
+            return jsonify({'error': 'No file or URL provided'}), 400
 
-    lines = log_content.split('\n')
-    LOG_CACHE[file_id] = lines
-    session[SESSION_KEY] = file_id
-    
-    analysis = analyze_log_content(lines)
-    
-    # Save to history
-    with get_db() as db:
-        db.execute('''
-            INSERT INTO log_history 
-            (source, name, error_count, warning_count, summary)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (
-            source,
-            name,
-            len([l for l in analysis['critical_lines'] if 'ERROR' in l['content'].upper()]),
-            len([l for l in analysis['critical_lines'] if 'WARNING' in l['content'].upper()]),
-            json.dumps(analysis)
-        ))
+        # Process the log content
+        error_counts = {'Critical': 0, 'Error': 0, 'Warning': 0}
+        critical_lines = []
+        lines = log_content.splitlines()
+        
+        for i, line in enumerate(lines, 1):
+            if ERROR_PATTERN.search(line):
+                error_counts['Error'] += 1
+                if 'Exception' in line or 'FATAL' in line:
+                    error_counts['Critical'] += 1
+                    critical_lines.append({
+                        'line': i,
+                        'content': line,
+                        'timestamp': extract_timestamp(line)
+                    })
+            elif WARNING_PATTERN.search(line):
+                error_counts['Warning'] += 1
+
+        # Store analysis in database
+        db = get_db()
+        db.execute(
+            'INSERT INTO log_history (source, name, error_count, warning_count, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+            (source, name, error_counts['Error'], error_counts['Warning'],
+             json.dumps({'error_counts': error_counts, 'critical_lines': critical_lines}),
+             datetime.datetime.now())
+        )
         db.commit()
 
-    return jsonify({
-        'file_id': file_id,
-        'line_count': len(lines),
-        'analysis': analysis
-    })
+        return jsonify({
+            'error_counts': error_counts,
+            'critical_lines': critical_lines
+        })
 
-def analyze_log_content(lines):
-    analysis = {
-        'error_counts': {},
-        'timeline': [],
-        'stages': {},
-        'critical_lines': []
-    }
-
-    for line_number, line in enumerate(lines, 1):
-        ts_match = TIMESTAMP_PATTERN.search(line)
-        timestamp = ts_match.group(0) if ts_match else None
-        
-        if ERROR_PATTERN.search(line):
-            error_type = 'ERROR' if 'ERROR' in line.upper() else 'FAILURE'
-            if error_type not in analysis['error_counts']:
-                analysis['error_counts'][error_type] = 0
-            analysis['error_counts'][error_type] += 1
-            
-            context_start = max(0, line_number - 6)
-            context_end = min(len(lines), line_number + 5)
-            
-            analysis['critical_lines'].append({
-                'line': line_number,
-                'content': line.strip(),
-                'timestamp': timestamp,
-                'context': lines[context_start:context_end],
-                'context_range': (context_start + 1, context_end)
-            })
-    
-    return analysis
+    except Exception as e:
+        app.logger.error(f"Error analyzing log: {str(e)}")
+        return jsonify({'error': f'Error analyzing log: {str(e)}'}), 500
 
 @app.route('/log-context/<file_id>/<int:start>/<int:end>')
 def get_log_context(file_id, start, end):
