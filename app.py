@@ -896,13 +896,25 @@ def save_analysis_to_db(source, name, analysis):
 if __name__ == '__main__':
     # Parse command line arguments
     import argparse
-    parser = argparse.ArgumentParser(description='Jenkins Log Analyzer')
+    parser = argparse.ArgumentParser(description='WolfsLogDebugger')
     parser.add_argument('--port', type=int, default=8086, help='Port to run the server on')
+    parser.add_argument('--https', action='store_true', help='Run with HTTPS')
     args = parser.parse_args()
     
     # Initialize database
     with app.app_context():
         init_db()
     
+    # Check if SSL certificates exist
+    cert_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'cert.pem')
+    key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'key.pem')
+    
+    ssl_context = None
+    if args.https and os.path.exists(cert_path) and os.path.exists(key_path):
+        ssl_context = (cert_path, key_path)
+        app.logger.info(f"Running with HTTPS using certificates: {cert_path}, {key_path}")
+    elif args.https:
+        app.logger.warning("HTTPS requested but certificates not found. Running in HTTP mode.")
+    
     # Start the Flask server
-    app.run(debug=True, host='0.0.0.0', port=args.port)
+    app.run(debug=True, host='0.0.0.0', port=args.port, ssl_context=ssl_context)
