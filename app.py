@@ -93,29 +93,41 @@ def index():
 @app.route('/analyze', methods=['POST'])
 def analyze_log():
     try:
+        app.logger.info(f"Received form data: {request.form}")
+        app.logger.info(f"Received files: {request.files}")
+        
         if 'file' in request.files:
             log_file = request.files['file']
+            app.logger.info(f"Processing file: {log_file.filename}")
             if not log_file:
                 return jsonify({'error': 'No file provided'}), 400
             log_content = log_file.read().decode('utf-8')
             source = 'file'
             name = log_file.filename
         elif 'url' in request.form:
-            url = request.form['url'].strip()
+            url = request.form.get('url', '').strip()
+            app.logger.info(f"Processing URL: {url}")
             if not url:
                 return jsonify({'error': 'No URL provided'}), 400
+            
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+                app.logger.info(f"Added https:// prefix. New URL: {url}")
                 
             try:
                 log_content = fetch_log_from_url(url)
+                app.logger.info(f"Successfully fetched content from URL: {url}")
                 source = 'url'
                 name = url
             except Exception as e:
                 app.logger.error(f"Error fetching URL {url}: {str(e)}")
                 return jsonify({'error': f'Failed to fetch log from URL: {str(e)}'}), 400
         else:
+            app.logger.error("No file or URL found in request")
             return jsonify({'error': 'No file or URL provided'}), 400
 
         # Process the log content
+        app.logger.info("Processing log content...")
         error_counts = {'Critical': 0, 'Error': 0, 'Warning': 0}
         critical_lines = []
         lines = log_content.splitlines()
@@ -133,6 +145,8 @@ def analyze_log():
             elif WARNING_PATTERN.search(line):
                 error_counts['Warning'] += 1
 
+        app.logger.info(f"Analysis complete. Found {error_counts['Error']} errors, {error_counts['Critical']} critical, {error_counts['Warning']} warnings")
+
         # Store analysis in database
         db = get_db()
         db.execute(
@@ -142,6 +156,7 @@ def analyze_log():
              datetime.datetime.now())
         )
         db.commit()
+        app.logger.info("Analysis saved to database")
 
         return jsonify({
             'error_counts': error_counts,

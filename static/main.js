@@ -43,20 +43,32 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Show loading state
+        const submitButton = this.querySelector('button[type="submit"]');
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Analyzing...';
+
         const formData = new FormData();
         formData.append('url', url);
+
+        console.log('Submitting URL:', url); // Debug log
 
         fetch('/analyze', {
             method: 'POST',
             body: formData
         })
         .then(response => {
+            console.log('Response status:', response.status); // Debug log
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                return response.json().then(data => {
+                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                });
             }
             return response.json();
         })
         .then(analysis => {
+            console.log('Analysis result:', analysis); // Debug log
             if (analysis.error) {
                 throw new Error(analysis.error);
             }
@@ -64,10 +76,16 @@ document.addEventListener('DOMContentLoaded', function() {
             renderSummary(analysis);
             document.getElementById('results').classList.remove('d-none');
             loadHistory(); // Refresh history after successful analysis
+            urlInput.value = ''; // Clear the input
         })
         .catch(error => {
             console.error('Error:', error);
             alert('Error analyzing log: ' + error.message);
+        })
+        .finally(() => {
+            // Restore button state
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
         });
     });
 
@@ -82,6 +100,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Show loading state
+        const submitButton = this.querySelector('button[type="submit"]');
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Analyzing...';
+
         const formData = new FormData();
         formData.append('file', file);
 
@@ -91,7 +115,9 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                return response.json().then(data => {
+                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                });
             }
             return response.json();
         })
@@ -103,10 +129,16 @@ document.addEventListener('DOMContentLoaded', function() {
             renderSummary(analysis);
             document.getElementById('results').classList.remove('d-none');
             loadHistory(); // Refresh history after successful analysis
+            fileInput.value = ''; // Clear the input
         })
         .catch(error => {
             console.error('Error:', error);
             alert('Error analyzing log: ' + error.message);
+        })
+        .finally(() => {
+            // Restore button state
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
         });
     });
 });
