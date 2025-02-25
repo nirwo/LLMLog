@@ -54,6 +54,10 @@
                                         <label for="logUrl" class="form-label">Enter Jenkins log URL</label>
                                         <input type="url" class="form-control" id="logUrl" name="url" placeholder="https://jenkins.example.com/job/...">
                                     </div>
+                                    <div class="mb-3 form-check">
+                                        <input type="checkbox" class="form-check-input" id="skipSslVerify" name="skipSslVerify">
+                                        <label class="form-check-label" for="skipSslVerify">Skip SSL verification (use for self-signed certificates)</label>
+                                    </div>
                                     <button type="submit" class="btn btn-primary">
                                         <i class="bi bi-search"></i> Analyze Log
                                     </button>

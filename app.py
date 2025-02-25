@@ -92,30 +92,39 @@ def create_session():
     
     return session
 
-def fetch_log_from_url(url):
+def fetch_log_from_url(url, skip_ssl_verify=False):
     try:
         session = create_session()
-        app.logger.info(f"Fetching URL {url} with CA bundle: {session.verify}")
+        
+        if skip_ssl_verify:
+            app.logger.warning(f"SSL verification disabled for URL: {url}")
+            session.verify = False
+            # Suppress only the single warning from urllib3 needed.
+            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+        else:
+            app.logger.info(f"Fetching URL {url} with CA bundle: {session.verify}")
+            
         response = session.get(url, timeout=30)
         response.raise_for_status()
         return response.text
     except requests.exceptions.SSLError as ssl_err:
         app.logger.error(f"SSL Error: {ssl_err}")
-        # If SSL verification fails with system certs, try with default certifi bundle
-        session.verify = certifi.where()
-        try:
-            app.logger.info(f"Retrying with default certifi bundle: {certifi.where()}")
-            response = session.get(url, timeout=30)
-            response.raise_for_status()
-            return response.text
-        except Exception as e:
-            raise Exception(f"SSL verification failed with both system and default certificates: {str(e)}")
+        if not skip_ssl_verify:
+            # If SSL verification fails with system certs, try with default certifi bundle
+            session.verify = certifi.where()
+            try:
+                app.logger.info(f"Retrying with default certifi bundle: {certifi.where()}")
+                response = session.get(url, timeout=30)
+                response.raise_for_status()
+                return response.text
+            except Exception as e:
+                raise Exception(
+                    f"SSL verification failed. If this is a self-signed certificate, try enabling 'Skip SSL verification'. Error: {str(e)}"
+                )
+        else:
+            raise Exception(f"SSL connection failed even with verification disabled: {str(ssl_err)}")
     except Exception as e:
         raise Exception(f"Failed to fetch log from URL: {str(e)}")
-
-def extract_timestamp(line):
-    ts_match = TIMESTAMP_PATTERN.search(line)
-    return ts_match.group(0) if ts_match else None
 
 @app.route('/')
 def index():
@@ -137,7 +146,9 @@ def analyze_log():
             name = log_file.filename
         elif 'url' in request.form:
             url = request.form.get('url', '').strip()
-            app.logger.info(f"Processing URL: {url}")
+            skip_ssl_verify = request.form.get('skip_ssl_verify') == 'true'
+            app.logger.info(f"Processing URL: {url} (Skip SSL: {skip_ssl_verify})")
+            
             if not url:
                 return jsonify({'error': 'No URL provided'}), 400
             
@@ -146,13 +157,13 @@ def analyze_log():
                 app.logger.info(f"Added https:// prefix. New URL: {url}")
                 
             try:
-                log_content = fetch_log_from_url(url)
+                log_content = fetch_log_from_url(url, skip_ssl_verify)
                 app.logger.info(f"Successfully fetched content from URL: {url}")
                 source = 'url'
                 name = url
             except Exception as e:
                 app.logger.error(f"Error fetching URL {url}: {str(e)}")
-                return jsonify({'error': f'Failed to fetch log from URL: {str(e)}'}), 400
+                return jsonify({'error': str(e)}), 400
         else:
             app.logger.error("No file or URL found in request")
             return jsonify({'error': 'No file or URL provided'}), 400
@@ -225,6 +236,10 @@ def get_history():
         ''').fetchall()
     
     return jsonify([dict(row) for row in history])
+
+def extract_timestamp(line):
+    ts_match = TIMESTAMP_PATTERN.search(line)
+    return ts_match.group(0) if ts_match else None
 
 if __name__ == '__main__':
     init_db()

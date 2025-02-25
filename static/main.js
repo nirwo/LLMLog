@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('urlForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const urlInput = document.getElementById('logUrl');
+        const skipSslVerify = document.getElementById('skipSslVerify').checked;
         const url = urlInput.value.trim();
         
         if (!url) {
@@ -51,8 +52,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const formData = new FormData();
         formData.append('url', url);
+        formData.append('skip_ssl_verify', skipSslVerify);
 
-        console.log('Submitting URL:', url); // Debug log
+        console.log('Submitting URL:', url, 'Skip SSL:', skipSslVerify); // Debug log
 
         fetch('/analyze', {
             method: 'POST',
