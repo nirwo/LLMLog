@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, session
+from flask import Flask, request, jsonify, render_template, session, g
 import re
 import datetime
 import uuid
@@ -6,9 +6,17 @@ import sqlite3
 import json
 import requests
 from urllib.parse import urlparse
+import os
+import certifi
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+from urllib3.exceptions import InsecureRequestWarning
+
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 app = Flask(__name__)
 app.secret_key = 'dev-key-123'  # Required for session management
+app.config['DATABASE'] = os.path.join(app.root_path, 'logs.db')
 
 # Precompile regex patterns for performance
 ERROR_PATTERN = re.compile(r'\b(ERROR|FAILED|Exception:)\b', re.IGNORECASE)
@@ -19,20 +27,59 @@ BUILD_STAGE_PATTERN = re.compile(r'\[Stage : (.+?)\]')
 LOG_CACHE = {}
 SESSION_KEY = 'current_log'
 
-# Database initialization
-def init_db():
-    with sqlite3.connect('logs.db') as conn:
-        with open('schema.sql') as f:
-            conn.executescript(f.read())
-
 def get_db():
-    db = sqlite3.connect('logs.db')
-    db.row_factory = sqlite3.Row
-    return db
+    if 'db' not in g:
+        g.db = sqlite3.connect(
+            app.config['DATABASE'],
+            detect_types=sqlite3.PARSE_DECLTYPES
+        )
+        g.db.row_factory = sqlite3.Row
+    return g.db
 
-# Initialize database on startup
-with app.app_context():
-    init_db()
+def init_db():
+    with app.app_context():
+        db = get_db()
+        with app.open_resource('schema.sql') as f:
+            db.executescript(f.read().decode('utf8'))
+        db.commit()
+
+@app.teardown_appcontext
+def close_db(error):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+
+def create_session():
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=[500, 502, 503, 504]
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    session.verify = certifi.where()  # Use certifi's certificate bundle
+    return session
+
+def fetch_log_from_url(url):
+    try:
+        session = create_session()
+        response = session.get(url, timeout=30)
+        response.raise_for_status()
+        return response.text
+    except requests.exceptions.SSLError:
+        # If SSL verification fails, try without verification but log a warning
+        session.verify = False
+        try:
+            response = session.get(url, timeout=30)
+            response.raise_for_status()
+            app.logger.warning(f"SSL verification failed for {url}, proceeded with insecure connection")
+            return response.text
+        except Exception as e:
+            raise Exception(f"Failed to fetch log from URL (even with SSL verification disabled): {str(e)}")
+    except Exception as e:
+        raise Exception(f"Failed to fetch log from URL: {str(e)}")
 
 @app.route('/')
 def index():
@@ -49,9 +96,7 @@ def analyze_log():
         name = log_file.filename
     elif 'url' in request.form:
         url = request.form['url']
-        response = requests.get(url)
-        response.raise_for_status()
-        log_content = response.text
+        log_content = fetch_log_from_url(url)
         source = 'url'
         name = url
     else:
