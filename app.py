@@ -29,26 +29,53 @@ WARNING_PATTERN = re.compile(r'\b(WARNING|WARN:)\b', re.IGNORECASE)
 LOG_CACHE = {}
 SESSION_KEY = 'current_log'
 
-# Get system certificates
-def get_system_ca_certificates():
+# Create a custom SSL context using system certificates
+def create_ssl_context(verify=True):
+    if not verify:
+        return False
+        
+    context = ssl.create_default_context()
+    
+    # Try to load system certificates
     try:
-        import certifi.where
-        system_ca = certifi.where()
-        if os.path.exists('/etc/ssl/certs/ca-certificates.crt'):
-            return '/etc/ssl/certs/ca-certificates.crt'
-        elif os.path.exists('/etc/ssl/certs/ca-bundle.crt'):
-            return '/etc/ssl/certs/ca-bundle.crt'
-        elif os.path.exists('/etc/pki/tls/certs/ca-bundle.crt'):
-            return '/etc/pki/tls/certs/ca-bundle.crt'
-        else:
-            return system_ca
+        # Try different certificate locations
+        cert_paths = [
+            '/etc/ssl/certs',  # Debian/Ubuntu
+            '/etc/pki/tls/certs',  # RHEL/CentOS
+            '/etc/ssl/cert.pem',  # OpenBSD, FreeBSD
+            '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem',  # Some Linux
+            certifi.where()  # certifi's certificates as last resort
+        ]
+        
+        for cert_path in cert_paths:
+            if os.path.exists(cert_path):
+                app.logger.info(f"Loading certificates from: {cert_path}")
+                if os.path.isdir(cert_path):
+                    context.load_verify_locations(capath=cert_path)
+                else:
+                    context.load_verify_locations(cafile=cert_path)
+                return context
+                
     except Exception as e:
-        app.logger.warning(f"Could not find system certificates: {e}")
-        return None
+        app.logger.error(f"Error loading certificates: {e}")
+    
+    return True  # Fall back to requests' default behavior
 
-# Get system CA certificates
-SYSTEM_CA_BUNDLE = get_system_ca_certificates()
-app.logger.info(f"Using CA bundle from: {SYSTEM_CA_BUNDLE}")
+def create_session(verify=True):
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=[500, 502, 503, 504]
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    
+    # Set up SSL verification
+    session.verify = create_ssl_context(verify)
+    
+    return session
 
 def get_db():
     if 'db' not in g:
@@ -72,58 +99,24 @@ def close_db(error):
     if db is not None:
         db.close()
 
-def create_session():
-    session = requests.Session()
-    retry = Retry(
-        total=3,
-        backoff_factor=0.5,
-        status_forcelist=[500, 502, 503, 504]
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    
-    if SYSTEM_CA_BUNDLE:
-        session.verify = SYSTEM_CA_BUNDLE
-        app.logger.info(f"Using system CA bundle: {SYSTEM_CA_BUNDLE}")
-    else:
-        app.logger.warning("No system CA bundle found, falling back to default certifi bundle")
-        session.verify = True  # Use default certifi bundle
-    
-    return session
-
 def fetch_log_from_url(url, skip_ssl_verify=False):
     try:
-        session = create_session()
+        session = create_session(verify=not skip_ssl_verify)
+        app.logger.info(f"Fetching URL {url} (Skip SSL: {skip_ssl_verify})")
         
-        if skip_ssl_verify:
-            app.logger.warning(f"SSL verification disabled for URL: {url}")
-            session.verify = False
-            # Suppress only the single warning from urllib3 needed.
-            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-        else:
-            app.logger.info(f"Fetching URL {url} with CA bundle: {session.verify}")
-            
         response = session.get(url, timeout=30)
         response.raise_for_status()
         return response.text
     except requests.exceptions.SSLError as ssl_err:
-        app.logger.error(f"SSL Error: {ssl_err}")
-        if not skip_ssl_verify:
-            # If SSL verification fails with system certs, try with default certifi bundle
-            session.verify = certifi.where()
-            try:
-                app.logger.info(f"Retrying with default certifi bundle: {certifi.where()}")
-                response = session.get(url, timeout=30)
-                response.raise_for_status()
-                return response.text
-            except Exception as e:
-                raise Exception(
-                    f"SSL verification failed. If this is a self-signed certificate, try enabling 'Skip SSL verification'. Error: {str(e)}"
-                )
+        error_msg = str(ssl_err)
+        if "CERTIFICATE_VERIFY_FAILED" in error_msg:
+            raise Exception(
+                "SSL certificate verification failed. If this is an internal or self-signed certificate, "
+                "try enabling 'Skip SSL verification' checkbox."
+            )
         else:
-            raise Exception(f"SSL connection failed even with verification disabled: {str(ssl_err)}")
-    except Exception as e:
+            raise Exception(f"SSL Error: {error_msg}")
+    except requests.exceptions.RequestException as e:
         raise Exception(f"Failed to fetch log from URL: {str(e)}")
 
 @app.route('/')
