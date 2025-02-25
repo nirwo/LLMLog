@@ -6,13 +6,10 @@ let currentLogState = {
 };
 
 // HTML escape function for safe rendering
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Theme management
@@ -220,12 +217,25 @@ function renderCharts(analysis) {
     const ctx = document.getElementById('errorChart').getContext('2d');
     const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
     
-    new Chart(ctx, {
+    // Prepare data for the chart
+    const labels = ['Critical', 'Error', 'Warning'];
+    const data = [
+        analysis.error_counts.Critical || 0,
+        analysis.error_counts.Error || 0,
+        analysis.error_counts.Warning || 0
+    ];
+    
+    // Create or update chart
+    if (window.errorChart) {
+        window.errorChart.destroy();
+    }
+    
+    window.errorChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: Object.keys(analysis.error_counts),
+            labels: labels,
             datasets: [{
-                data: Object.values(analysis.error_counts),
+                data: data,
                 backgroundColor: ['#dc3545', '#ffc107', '#0dcaf0'],
                 borderWidth: 1,
                 borderColor: isDark ? '#212529' : '#fff'
@@ -235,22 +245,18 @@ function renderCharts(analysis) {
             responsive: true,
             maintainAspectRatio: true,
             plugins: {
-                legend: { 
+                legend: {
                     position: 'right',
                     labels: {
                         boxWidth: 12,
-                        font: {
-                            size: 11
-                        },
+                        font: { size: 11 },
                         color: isDark ? '#dee2e6' : '#212529'
                     }
                 },
                 title: {
                     display: true,
-                    text: 'Error Types',
-                    font: {
-                        size: 14
-                    },
+                    text: 'Error Distribution',
+                    font: { size: 14 },
                     color: isDark ? '#dee2e6' : '#212529'
                 }
             }
@@ -259,16 +265,25 @@ function renderCharts(analysis) {
 }
 
 function renderSummary(analysis) {
-    document.getElementById('criticalLines').innerHTML = analysis.critical_lines
-        .map(line => `
-            <div class="critical-line" data-line="${line.line}" onclick="showLogContext(${line.line})">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="badge bg-secondary">${line.timestamp || 'No timestamp'}</span>
-                    <span class="badge bg-danger">Line ${line.line}</span>
-                </div>
-                <pre class="mb-0">${escapeHtml(line.content)}</pre>
+    const container = document.getElementById('criticalLines');
+    if (!container) return;
+
+    if (!analysis.critical_lines || analysis.critical_lines.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No critical issues found.</div>';
+        return;
+    }
+
+    const html = analysis.critical_lines.map(line => `
+        <div class="critical-line">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="badge bg-secondary">${line.timestamp || 'No timestamp'}</span>
+                <span class="badge bg-danger">Line ${line.line}</span>
             </div>
-        `).join('');
+            <pre class="mb-0"><code>${escapeHtml(line.content)}</code></pre>
+        </div>
+    `).join('');
+
+    container.innerHTML = html;
 }
 
 function scrollLog(offset) {

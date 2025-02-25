@@ -123,84 +123,111 @@ def fetch_log_from_url(url, skip_ssl_verify=False):
 def index():
     return render_template('index.html')
 
-@app.route('/analyze', methods=['POST'])
-def analyze_log():
+def analyze_log(log_content):
+    app.logger.info("Starting log analysis")
+    
+    # Initialize counters and storage
+    error_counts = {"Critical": 0, "Error": 0, "Warning": 0}
+    critical_lines = []
+    line_number = 0
+    
     try:
-        app.logger.info(f"Received form data: {request.form}")
-        app.logger.info(f"Received files: {request.files}")
-        
-        if 'file' in request.files:
-            log_file = request.files['file']
-            app.logger.info(f"Processing file: {log_file.filename}")
-            if not log_file:
-                return jsonify({'error': 'No file provided'}), 400
-            log_content = log_file.read().decode('utf-8')
-            source = 'file'
-            name = log_file.filename
-        elif 'url' in request.form:
-            url = request.form.get('url', '').strip()
-            skip_ssl_verify = request.form.get('skip_ssl_verify') == 'true'
-            app.logger.info(f"Processing URL: {url} (Skip SSL: {skip_ssl_verify})")
-            
-            if not url:
-                return jsonify({'error': 'No URL provided'}), 400
-            
-            if not url.startswith(('http://', 'https://')):
-                url = 'https://' + url
-                app.logger.info(f"Added https:// prefix. New URL: {url}")
-                
-            try:
-                log_content = fetch_log_from_url(url, skip_ssl_verify)
-                app.logger.info(f"Successfully fetched content from URL: {url}")
-                source = 'url'
-                name = url
-            except Exception as e:
-                app.logger.error(f"Error fetching URL {url}: {str(e)}")
-                return jsonify({'error': str(e)}), 400
-        else:
-            app.logger.error("No file or URL found in request")
-            return jsonify({'error': 'No file or URL provided'}), 400
-
-        # Process the log content
-        app.logger.info("Processing log content...")
-        error_counts = {'Critical': 0, 'Error': 0, 'Warning': 0}
-        critical_lines = []
+        # Split log into lines and analyze each line
         lines = log_content.splitlines()
         
-        for i, line in enumerate(lines, 1):
-            if ERROR_PATTERN.search(line):
-                error_counts['Error'] += 1
-                if 'Exception' in line or 'FATAL' in line:
-                    error_counts['Critical'] += 1
-                    critical_lines.append({
-                        'line': i,
-                        'content': line,
-                        'timestamp': extract_timestamp(line)
-                    })
-            elif WARNING_PATTERN.search(line):
-                error_counts['Warning'] += 1
-
-        app.logger.info(f"Analysis complete. Found {error_counts['Error']} errors, {error_counts['Critical']} critical, {error_counts['Warning']} warnings")
-
-        # Store analysis in database
-        db = get_db()
-        db.execute(
-            'INSERT INTO log_history (source, name, error_count, warning_count, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-            (source, name, error_counts['Error'], error_counts['Warning'],
-             json.dumps({'error_counts': error_counts, 'critical_lines': critical_lines}),
-             datetime.datetime.now())
-        )
-        db.commit()
-        app.logger.info("Analysis saved to database")
-
-        return jsonify({
-            'error_counts': error_counts,
-            'critical_lines': critical_lines
-        })
-
+        for line in lines:
+            line_number += 1
+            line = line.strip()
+            
+            if not line:  # Skip empty lines
+                continue
+                
+            # Convert line to lowercase for case-insensitive matching
+            line_lower = line.lower()
+            
+            # Check for different types of errors
+            if any(critical in line_lower for critical in ['fatal error', 'critical', 'panic']):
+                error_counts["Critical"] += 1
+                # Store critical line with context
+                critical_lines.append({
+                    "line": line_number,
+                    "content": line,
+                    "timestamp": extract_timestamp(line)
+                })
+            elif 'error' in line_lower:
+                error_counts["Error"] += 1
+            elif 'warning' in line_lower:
+                error_counts["Warning"] += 1
+        
+        app.logger.info(f"Analysis complete. Found {error_counts}")
+        
+        # Return analysis results
+        return {
+            "error_counts": error_counts,
+            "critical_lines": critical_lines,
+            "total_lines": line_number,
+            "error": None
+        }
+        
     except Exception as e:
-        app.logger.error(f"Error analyzing log: {str(e)}")
-        return jsonify({'error': f'Error analyzing log: {str(e)}'}), 500
+        app.logger.error(f"Error during log analysis: {str(e)}")
+        return {
+            "error": f"Failed to analyze log: {str(e)}",
+            "error_counts": error_counts,
+            "critical_lines": [],
+            "total_lines": 0
+        }
+
+def extract_timestamp(line):
+    """Extract timestamp from a log line using common patterns."""
+    import re
+    
+    # Common timestamp patterns
+    patterns = [
+        r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?',  # 2024-02-25 10:30:45.123
+        r'\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}',           # 2024/02/25 10:30:45
+        r'\w{3} \d{2} \d{2}:\d{2}:\d{2}',                 # Feb 25 10:30:45
+        r'\d{2}:\d{2}:\d{2}(?:\.\d+)?'                    # 10:30:45.123
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, line)
+        if match:
+            return match.group(0)
+    
+    return None
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    try:
+        if 'file' in request.files:
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({"error": "No file selected"}), 400
+            log_content = file.read().decode('utf-8', errors='replace')
+            source = f"File: {file.filename}"
+        elif 'url' in request.form:
+            url = request.form['url']
+            skip_ssl_verify = request.form.get('skip_ssl_verify', 'false').lower() == 'true'
+            log_content = fetch_log_from_url(url, skip_ssl_verify)
+            source = f"URL: {url}"
+        else:
+            return jsonify({"error": "No file or URL provided"}), 400
+            
+        # Analyze the log
+        analysis = analyze_log(log_content)
+        
+        if analysis.get("error"):
+            return jsonify(analysis), 400
+            
+        # Store in history
+        store_analysis(source, analysis)
+        
+        return jsonify(analysis)
+        
+    except Exception as e:
+        app.logger.error(f"Error in /analyze endpoint: {str(e)}")
+        return jsonify({"error": str(e)}), 400
 
 @app.route('/log-context/<file_id>/<int:start>/<int:end>')
 def get_log_context(file_id, start, end):
@@ -230,9 +257,16 @@ def get_history():
     
     return jsonify([dict(row) for row in history])
 
-def extract_timestamp(line):
-    ts_match = TIMESTAMP_PATTERN.search(line)
-    return ts_match.group(0) if ts_match else None
+def store_analysis(source, analysis):
+    db = get_db()
+    db.execute(
+        'INSERT INTO log_history (source, name, error_count, warning_count, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+        (source, 'Log Analysis', analysis['error_counts']['Error'], analysis['error_counts']['Warning'],
+         json.dumps({'error_counts': analysis['error_counts'], 'critical_lines': analysis['critical_lines']}),
+         datetime.datetime.now())
+    )
+    db.commit()
+    app.logger.info("Analysis saved to database")
 
 if __name__ == '__main__':
     init_db()
