@@ -1,101 +1,61 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jenkins Log Analyzer</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body class="bg-dark">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="/"><i class="bi bi-journal-text"></i> Jenkins Log Analyzer</a>
-            <button class="btn btn-outline-light ms-auto" onclick="toggleTheme()">
-                <i class="bi bi-moon-stars"></i>
-            </button>
-        </div>
-    </nav>
+{% extends 'base.html' %}
 
-    <div class="container">
-        <div class="row">
-            <div class="col-md-8">
-                <div class="card bg-dark-subtle mb-4">
-                    <div class="card-body">
-                        <ul class="nav nav-tabs" id="inputTabs" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="file-tab" data-bs-toggle="tab" data-bs-target="#file" type="button" role="tab">
-                                    <i class="bi bi-file-text"></i> File Upload
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="url-tab" data-bs-toggle="tab" data-bs-target="#url" type="button" role="tab">
-                                    <i class="bi bi-link"></i> Jenkins URL
-                                </button>
-                            </li>
-                        </ul>
-                        
-                        <div class="tab-content mt-3" id="inputTabsContent">
-                            <div class="tab-pane fade show active" id="file" role="tabpanel">
-                                <form id="uploadForm" enctype="multipart/form-data">
-                                    <div class="mb-3">
-                                        <label for="logFile" class="form-label">Select Jenkins log file</label>
-                                        <input type="file" class="form-control" id="logFile" name="file" accept=".log,.txt">
-                                    </div>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-search"></i> Analyze Log
-                                    </button>
-                                </form>
-                            </div>
-                            <div class="tab-pane fade" id="url" role="tabpanel">
-                                <form id="urlForm">
-                                    <div class="mb-3">
-                                        <label for="logUrl" class="form-label">Enter Jenkins log URL</label>
-                                        <input type="url" class="form-control" id="logUrl" name="url" placeholder="https://jenkins.example.com/job/...">
-                                    </div>
-                                    <div class="mb-3 form-check">
-                                        <input type="checkbox" class="form-check-input" id="skipSslVerify" name="skipSslVerify">
-                                        <label class="form-check-label" for="skipSslVerify">Skip SSL verification (use for self-signed certificates)</label>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-search"></i> Analyze Log
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+{% block title %}WolfsLogDebugger - Advanced Log Analysis{% endblock %}
 
-                <div id="results" class="card bg-dark-subtle d-none">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">Analysis Results</h5>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <canvas id="errorChart"></canvas>
-                            </div>
-                            <div class="col-md-6">
-                                <h6>Critical Lines</h6>
-                                <div id="criticalLines" class="critical-lines-container"></div>
-                            </div>
-                        </div>
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-5 mb-3"><i class="bi bi-bug"></i> WolfsLogDebugger</h1>
+        <p class="lead">Upload and analyze your log files with AI-powered insights</p>
+    </div>
+</div>
+<div class="row">
+    <div class="col-12">
+        <!-- Main Tabs Navigation -->
+        <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="analyze-tab" data-bs-toggle="tab" data-bs-target="#analyze-content" type="button" role="tab">
+                    <i class="bi bi-search"></i> Analyze Logs
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-content" type="button" role="tab">
+                    <i class="bi bi-clock-history"></i> History
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat-content" type="button" role="tab">
+                    <i class="bi bi-chat-dots"></i> Chat
+                </button>
+            </li>
+        </ul>
+        
+        <!-- Tab Contents -->
+        <div class="tab-content" id="mainTabsContent">
+            <!-- Analyze Tab Content -->
+            <div class="tab-pane fade show active" id="analyze-content" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-12">
+                        {% include 'components/upload_form.html' %}
+                        {% include 'components/analysis_results.html' %}
                     </div>
                 </div>
             </div>
-
-            <div class="col-md-4">
-                <div class="card bg-dark-subtle">
-                    <div class="card-body">
-                        <h5 class="card-title">Analysis History</h5>
-                        <div id="logHistory" class="history-container"></div>
+            
+            <!-- History Tab Content -->
+            <div class="tab-pane fade" id="history-content" role="tabpanel">
+                {% include 'components/history.html' %}
+            </div>
+            
+            <!-- Chat Tab Content -->
+            <div class="tab-pane fade" id="chat-content" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-12">
+                        {% include 'components/chat_interface.html' %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
-</body>
-</html>
+</div>
+{% endblock %}

@@ -1,0 +1,133 @@
+<div id="resultsCard" class="card bg-dark-subtle mb-4" style="display: none;">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="resultsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-content" type="button" role="tab">
+                    <i class="bi bi-bar-chart"></i> Summary
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="critical-tab" data-bs-toggle="tab" data-bs-target="#critical-content" type="button" role="tab">
+                    <i class="bi bi-exclamation-triangle"></i> Critical Lines
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="context-tab" data-bs-toggle="tab" data-bs-target="#context-content" type="button" role="tab">
+                    <i class="bi bi-file-earmark-text"></i> Log Context
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="llm-tab" data-bs-toggle="tab" data-bs-target="#llm-content" type="button" role="tab">
+                    <i class="bi bi-robot"></i> AI Analysis
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content" id="resultsTabsContent">
+            <!-- Summary Tab Content -->
+            <div class="tab-pane fade show active" id="summary-content" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="chart-container" style="position: relative; height: 200px; width: 100%;">
+                            <canvas id="errorChart"></canvas>
+                        </div>
+                        <div id="errorSummary" class="mt-2 text-center">
+                            <!-- Summary will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Log Overview</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6 mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="rounded-circle bg-danger d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+                                                <i class="bi bi-exclamation-triangle-fill text-white fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <h3 class="mb-0" id="errorCount">0</h3>
+                                                <div class="small text-muted">Errors</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="rounded-circle bg-warning d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+                                                <i class="bi bi-exclamation-circle-fill text-white fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <h3 class="mb-0" id="warningCount">0</h3>
+                                                <div class="small text-muted">Warnings</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="logSummaryDetails" class="mt-3">
+                                    <!-- Additional summary details will be added by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Critical Lines Tab Content -->
+            <div class="tab-pane fade" id="critical-content" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Critical Log Lines</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="criticalLines" class="p-3" style="max-height: 400px; overflow-y: auto;">
+                            <!-- Critical lines will be added by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Context Tab Content -->
+            <div class="tab-pane fade" id="context-content" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Log Context</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="logPreview">
+                            <!-- Log preview will be added by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- LLM Analysis Tab Content -->
+            <div class="tab-pane fade" id="llm-content" role="tabpanel">
+                <div id="llmSection">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">AI Analysis</h5>
+                            <div>
+                                <button id="refreshLlmBtn" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-arrow-repeat"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="llmAnalysisSpinner" class="text-center p-4" style="display: none;">
+                                <div class="spinner-border text-primary mb-3" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="text-muted">Analyzing with AI...</p>
+                            </div>
+                            <div id="llmAnalysisResults"></div>
+                            <div id="llmErrorMessage" class="alert alert-danger" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,82 @@
+{% block history %}
+<div class="card bg-dark-subtle">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0"><i class="bi bi-clock-history"></i> Analysis History</h5>
+            <button class="btn btn-sm btn-outline-secondary" id="refreshHistoryBtn" onclick="loadHistory()">
+                <i class="bi bi-arrow-repeat"></i> Refresh
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>File Name</th>
+                        <th class="text-center">Source</th>
+                        <th class="text-center">Errors</th>
+                        <th class="text-center">Warnings</th>
+                        <th class="text-center">Date</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTable">
+                    <tr>
+                        <td colspan="6" class="text-center p-5">
+                            <div class="text-muted">
+                                <i class="bi bi-clock-history me-2"></i>
+                                Loading history...
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<script>
+    // Template for history items
+    function createHistoryItem(item) {
+        const date = new Date(item.timestamp * 1000);
+        const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        
+        // Create element
+        const historyItem = document.createElement('tr');
+        historyItem.dataset.id = item.id;
+        historyItem.innerHTML = `
+            <td>${item.file_name}</td>
+            <td class="text-center">${item.source || 'Unknown Source'}</td>
+            <td class="text-center">${item.error_count || 0}</td>
+            <td class="text-center">${item.warning_count || 0}</td>
+            <td class="text-center">${formattedDate}</td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-primary load-history-btn" data-id="${item.id}" title="Load this analysis">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="btn btn-sm btn-danger delete-history-btn" data-id="${item.id}" title="Delete from history">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        
+        // Add click handlers
+        const loadBtn = historyItem.querySelector('.load-history-btn');
+        loadBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            loadHistoryItem(item.id);
+        });
+        
+        const deleteBtn = historyItem.querySelector('.delete-history-btn');
+        deleteBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (confirm('Are you sure you want to delete this history item?')) {
+                deleteHistoryItem(item.id);
+            }
+        });
+        
+        return historyItem;
+    }
+</script>

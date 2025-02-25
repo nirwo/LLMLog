@@ -1,0 +1,142 @@
+<div class="card mb-4" id="llmCard">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-robot me-2"></i>AI Analysis</h5>
+            <div id="llmStatus" class="text-muted">
+                <span class="text-warning"><i class="bi bi-hourglass-split me-1"></i>Checking status...</span>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="llmStatusMessage" class="alert alert-info" style="display: none;">
+            <div class="d-flex align-items-center">
+                <div><i class="bi bi-info-circle-fill me-2"></i></div>
+                <div>Click on the <i class="bi bi-robot"></i> button next to an error line to analyze it with AI.</div>
+            </div>
+        </div>
+        
+        <div id="llmLoading" class="text-center py-5" style="display: none;">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted">Analyzing error with AI...</p>
+        </div>
+        
+        <div id="llmResults" class="ai-analysis-results"></div>
+    </div>
+</div>
+
+<script>
+    // Helper function to render LLM analysis
+    function renderLlmAnalysis(analysis) {
+        const llmResultsContainer = document.getElementById('llmResults');
+        if (!llmResultsContainer) return;
+        
+        // Clear previous results
+        llmResultsContainer.innerHTML = '';
+        
+        if (!analysis || !analysis.result) {
+            llmResultsContainer.innerHTML = `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            No analysis results available.
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create the analysis card
+        const card = document.createElement('div');
+        card.className = 'card mb-3 ai-analysis-card';
+        
+        const cardHeader = document.createElement('div');
+        cardHeader.className = 'card-header';
+        cardHeader.innerHTML = `<h5 class="mb-0">AI Analysis: Error on Line ${analysis.line_number + 1}</h5>`;
+        
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body';
+        
+        // Parse and format the LLM result
+        const resultObj = typeof analysis.result === 'string' ? JSON.parse(analysis.result) : analysis.result;
+        
+        // Create sections for each part of the analysis
+        if (resultObj.error_summary) {
+            const summarySection = document.createElement('div');
+            summarySection.className = 'mb-3';
+            summarySection.innerHTML = `
+                <h6 class="fw-bold"><i class="bi bi-exclamation-circle-fill text-danger me-2"></i>Error Summary</h6>
+                <p>${escapeHtml(resultObj.error_summary)}</p>
+            `;
+            cardBody.appendChild(summarySection);
+        }
+        
+        if (resultObj.probable_cause) {
+            const causeSection = document.createElement('div');
+            causeSection.className = 'mb-3';
+            causeSection.innerHTML = `
+                <h6 class="fw-bold"><i class="bi bi-question-circle-fill text-primary me-2"></i>Probable Cause</h6>
+                <p>${escapeHtml(resultObj.probable_cause)}</p>
+            `;
+            cardBody.appendChild(causeSection);
+        }
+        
+        if (resultObj.suggested_fix) {
+            const fixSection = document.createElement('div');
+            fixSection.className = 'mb-3';
+            fixSection.innerHTML = `
+                <h6 class="fw-bold"><i class="bi bi-tools text-success me-2"></i>Suggested Fix</h6>
+                <p>${escapeHtml(resultObj.suggested_fix)}</p>
+            `;
+            cardBody.appendChild(fixSection);
+        }
+        
+        if (resultObj.additional_context) {
+            const contextSection = document.createElement('div');
+            contextSection.className = 'mb-0';
+            contextSection.innerHTML = `
+                <h6 class="fw-bold"><i class="bi bi-info-circle-fill text-info me-2"></i>Additional Context</h6>
+                <p>${escapeHtml(resultObj.additional_context)}</p>
+            `;
+            cardBody.appendChild(contextSection);
+        }
+        
+        card.appendChild(cardHeader);
+        card.appendChild(cardBody);
+        llmResultsContainer.appendChild(card);
+    }
+    
+    // Function to enable LLM features in the UI
+    function enableLlmFeatures() {
+        const llmStatusMessage = document.getElementById('llmStatusMessage');
+        if (llmStatusMessage) {
+            llmStatusMessage.style.display = 'block';
+        }
+        
+        // Show all analyze buttons
+        document.querySelectorAll('.analyze-btn').forEach(btn => {
+            btn.style.display = 'block';
+        });
+    }
+    
+    // Function to disable LLM features in the UI
+    function disableLlmFeatures() {
+        const llmResults = document.getElementById('llmResults');
+        if (llmResults) {
+            llmResults.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    AI analysis is not available. Please check the LLM service connection.
+                </div>
+            `;
+        }
+        
+        // Hide all analyze buttons
+        document.querySelectorAll('.analyze-btn').forEach(btn => {
+            btn.style.display = 'none';
+        });
+    }
+</script>

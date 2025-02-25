@@ -1,0 +1,48 @@
+<div class="card bg-dark-subtle mb-4 upload-form">
+    <div class="card-body">
+        <ul class="nav nav-tabs" id="inputTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="fileUploadTab" data-bs-toggle="tab" data-bs-target="#file" type="button" role="tab">
+                    <i class="bi bi-file-text"></i> File Upload
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="urlUploadTab" data-bs-toggle="tab" data-bs-target="#url" type="button" role="tab">
+                    <i class="bi bi-link"></i> Jenkins URL
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content mt-3" id="inputTabsContent">
+            <div class="tab-pane fade show active" id="file" role="tabpanel">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="logFile" class="form-label">Select Jenkins log file</label>
+                        <input type="file" class="form-control" id="logFile" name="file" accept=".log,.txt">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Analyze Log
+                    </button>
+                    <div id="analyzeSpinner" class="spinner-border spinner-border-sm text-light ms-2" role="status" style="display: none;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </form>
+            </div>
+            <div class="tab-pane fade" id="url" role="tabpanel">
+                <form id="urlForm">
+                    <div class="mb-3">
+                        <label for="logUrl" class="form-label">Enter Jenkins log URL</label>
+                        <input type="url" class="form-control" id="logUrl" name="url" placeholder="https://jenkins.example.com/job/...">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="skipSSLVerification" name="skip_ssl_verify">
+                        <label class="form-check-label" for="skipSSLVerification">Skip SSL verification (use for self-signed certificates)</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Analyze Log
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,91 @@
+[2024-02-25 10:00:01] INFO: Application starting up - Jenkins Build Service v2.5.0
+[2024-02-25 10:00:05] INFO: Loading configuration from /etc/jenkins/config.xml
+[2024-02-25 10:00:06] INFO: Connected to Jenkins master server at jenkins.example.com:8080
+[2024-02-25 10:00:10] INFO: Pipeline job 'main-project-build' #1234 started
+[2024-02-25 10:00:15] INFO: Checking out from Git repository: git@github.com:example/main-project.git
+[2024-02-25 10:00:20] WARNING: Git checkout took longer than expected (15s)
+[2024-02-25 10:00:25] INFO: Starting build step: 'compile'
+[2024-02-25 10:00:30] INFO: Executing: mvn clean compile
+[2024-02-25 10:01:35] ERROR: [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.8.1:compile (default-compile) on project main-project: Compilation failure: Compilation failure: 
+[2024-02-25 10:01:36] ERROR: [ERROR] /workspace/src/main/java/com/example/service/UserService.java:[45,16] cannot find symbol
+[2024-02-25 10:01:37] ERROR: [ERROR]   symbol:   method validateUser(java.lang.String,java.lang.String)
+[2024-02-25 10:01:38] ERROR: [ERROR]   location: variable authProvider of type com.example.auth.AuthProvider
+[2024-02-25 10:01:39] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 10:01:40] INFO: [INFO] BUILD FAILURE
+[2024-02-25 10:01:41] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 10:01:45] INFO: Starting build step: 'checkstyle'
+[2024-02-25 10:01:50] WARNING: Skipping checkstyle due to previous build failure
+[2024-02-25 10:01:55] INFO: Starting build step: 'test'
+[2024-02-25 10:02:00] WARNING: Skipping tests due to previous build failure
+[2024-02-25 10:02:05] WARNING: Build time exceeded expected duration
+[2024-02-25 10:02:10] INFO: Checking workspace disk usage
+[2024-02-25 10:02:15] INFO: Current workspace size: 345MB
+[2024-02-25 10:02:20] INFO: Pipeline job 'main-project-build' #1234 completed with status: FAILURE
+[2024-02-25 10:02:25] ERROR: Build failed due to compilation errors
+[2024-02-25 10:02:30] INFO: Sending email notification to: dev-team@example.com
+[2024-02-25 10:02:35] INFO: Cleaning up workspace
+[2024-02-25 10:02:40] INFO: Jenkins agent shutting down
+[2024-02-25 11:00:01] INFO: Application starting up - Jenkins Build Service v2.5.0
+[2024-02-25 11:00:05] INFO: Loading configuration from /etc/jenkins/config.xml
+[2024-02-25 11:00:06] INFO: Connected to Jenkins master server at jenkins.example.com:8080
+[2024-02-25 11:00:10] INFO: Pipeline job 'main-project-build' #1235 started
+[2024-02-25 11:00:15] INFO: Checking out from Git repository: git@github.com:example/main-project.git
+[2024-02-25 11:00:20] INFO: Git checkout successful
+[2024-02-25 11:00:25] INFO: Starting build step: 'compile'
+[2024-02-25 11:00:30] INFO: Executing: mvn clean compile
+[2024-02-25 11:01:35] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 11:01:36] INFO: [INFO] BUILD SUCCESS
+[2024-02-25 11:01:37] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 11:01:40] INFO: Starting build step: 'test'
+[2024-02-25 11:01:45] INFO: Executing: mvn test
+[2024-02-25 11:02:30] ERROR: [ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:2.22.2:test (default-test) on project main-project: There are test failures.
+[2024-02-25 11:02:31] ERROR: [ERROR] Please refer to /workspace/target/surefire-reports for the individual test results.
+[2024-02-25 11:02:32] ERROR: [ERROR] -> [Help 1]
+[2024-02-25 11:02:35] INFO: Test failure details:
+[2024-02-25 11:02:36] ERROR: [ERROR] com.example.service.UserServiceTest.testAuthentication:78 » NullPointer
+[2024-02-25 11:02:37] ERROR: [ERROR] com.example.service.UserServiceTest.testTokenGeneration:112 Expected token to match pattern but was: null
+[2024-02-25 11:02:40] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 11:02:41] INFO: [INFO] BUILD FAILURE
+[2024-02-25 11:02:42] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 11:02:45] INFO: Starting build step: 'integration-test'
+[2024-02-25 11:02:50] WARNING: Skipping integration tests due to previous test failures
+[2024-02-25 11:02:55] INFO: Pipeline job 'main-project-build' #1235 completed with status: UNSTABLE
+[2024-02-25 11:03:00] WARNING: Build marked as unstable due to test failures
+[2024-02-25 11:03:05] INFO: Sending email notification to: dev-team@example.com
+[2024-02-25 11:03:10] INFO: Archiving test results
+[2024-02-25 11:03:15] INFO: Jenkins agent shutting down
+[2024-02-25 12:00:01] INFO: Application starting up - Jenkins Build Service v2.5.0
+[2024-02-25 12:00:05] INFO: Loading configuration from /etc/jenkins/config.xml
+[2024-02-25 12:00:06] INFO: Connected to Jenkins master server at jenkins.example.com:8080
+[2024-02-25 12:00:10] INFO: Pipeline job 'main-project-build' #1236 started
+[2024-02-25 12:00:15] INFO: Checking out from Git repository: git@github.com:example/main-project.git
+[2024-02-25 12:00:20] INFO: Git checkout successful
+[2024-02-25 12:00:25] INFO: Starting build step: 'compile'
+[2024-02-25 12:00:30] INFO: Executing: mvn clean compile
+[2024-02-25 12:01:35] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 12:01:36] INFO: [INFO] BUILD SUCCESS
+[2024-02-25 12:01:37] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 12:01:40] INFO: Starting build step: 'test'
+[2024-02-25 12:01:45] INFO: Executing: mvn test
+[2024-02-25 12:02:35] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 12:02:36] INFO: [INFO] BUILD SUCCESS
+[2024-02-25 12:02:37] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 12:02:40] INFO: Starting build step: 'integration-test'
+[2024-02-25 12:02:45] INFO: Executing: mvn verify -DskipUnitTests=true
+[2024-02-25 12:03:35] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 12:03:36] INFO: [INFO] BUILD SUCCESS
+[2024-02-25 12:03:37] INFO: [INFO] ------------------------------------------------------------------------
+[2024-02-25 12:03:40] INFO: Starting build step: 'deploy'
+[2024-02-25 12:03:45] INFO: Executing: mvn deploy -DskipTests=true
+[2024-02-25 12:04:30] ERROR: [ERROR] Failed to execute goal org.apache.maven.plugins:maven-deploy-plugin:2.8.2:deploy (default-deploy): Failed to deploy artifacts: Could not transfer artifact com.example:main-project:jar:1.0.0 to nexus-releases (https://nexus.example.com/repository/maven-releases/): Connect to nexus.example.com:443 [nexus.example.com/10.0.1.42] failed: Connection refused
+[2024-02-25 12:04:35] ERROR: [ERROR] -> [Help 1]
+[2024-02-25 12:04:40] WARNING: Deployment to Nexus repository failed, will retry
+[2024-02-25 12:04:45] INFO: Retrying deployment (attempt 1 of 3)
+[2024-02-25 12:04:50] INFO: Executing: mvn deploy -DskipTests=true
+[2024-02-25 12:05:35] ERROR: [ERROR] Failed to execute goal org.apache.maven.plugins:maven-deploy-plugin:2.8.2:deploy (default-deploy): Failed to deploy artifacts: Could not transfer artifact com.example:main-project:jar:1.0.0 to nexus-releases (https://nexus.example.com/repository/maven-releases/): Connect to nexus.example.com:443 [nexus.example.com/10.0.1.42] failed: Connection timed out
+[2024-02-25 12:05:40] ERROR: [ERROR] -> [Help 1]
+[2024-02-25 12:05:45] ERROR: Deployment failed after maximum retry attempts
+[2024-02-25 12:05:50] INFO: Pipeline job 'main-project-build' #1236 completed with status: FAILURE
+[2024-02-25 12:05:55] ERROR: Build failed due to deployment errors
+[2024-02-25 12:06:00] INFO: Sending email notification to: dev-team@example.com, ops-team@example.com
+[2024-02-25 12:06:05] INFO: Jenkins agent shutting down
